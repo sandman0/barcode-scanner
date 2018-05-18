@@ -108,6 +108,9 @@ QRReader.init = () => {
 	}
 }
 
+QRReader.stopscan = function () {
+	QRReader.active = false;
+}
 /**
  * \brief QRReader Scan Action
  * Call this to start scanning for QR codes.
