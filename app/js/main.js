@@ -47,7 +47,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
   window.appOverlay = document.querySelector('.app__overlay');
   
-  var client  = mqtt.connect('ws://192.168.1.129:9001');
+  //var client  = mqtt.connect('ws://192.168.1.129:9001');
+  var client  = mqtt.connect('wss://m11.cloudmqtt.com:36606', {username: "zuwlbkon", password: "51pZqkH1OXLV"});
 
   client.on('connect', function () {
     console.log('connected to mqtt');
