@@ -87,7 +87,7 @@ if (process.env.NODE_ENV === 'production') {
       relativePaths: false,
       AppCache: false,
       publicPath: '/',
-      excludes: ['*.txt', '*.svg', 'CNAME', '**/.DS_Store', 'images/*.*', 'images/touch/*.*', 'images/touch/*.*', '**/*.map'],
+      excludes: ['*.txt', '*.svg', '**/.DS_Store', 'images/*.*', 'images/touch/*.*', 'images/touch/*.*', '**/*.map'],
       externals: ['/index.html?utm_source=homescreen', 'images/touch/favicon.ico', 'images/touch/favicon-16x16.png', 'images/touch/favicon-32x32.png', 'images/touch/apple-touch-icon.jpg', 'images/touch/android-chrome-512x512.png', 'images/touch/android-chrome-192x192.png', '/decoder.min.js']
     })
   );
@@ -102,7 +102,6 @@ if (process.env.NODE_ENV === 'production') {
       },
       { from: __dirname + '/app/decoder.min.js', to:  __dirname + '/dist/' },
       { from: __dirname + '/app/manifest.json', to:  __dirname + '/dist/' },
-      { from: __dirname + '/CNAME', to:  __dirname + '/dist/' },
       { from: __dirname + '/robots.txt', to:  __dirname + '/dist/' }
     ])
   );
