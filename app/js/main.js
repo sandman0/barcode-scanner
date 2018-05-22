@@ -1,8 +1,11 @@
 import QRReader from './vendor/qrscan.js';
-import {snackbar} from './snackbar.js';
+import {
+  snackbar
+} from './snackbar.js';
 import styles from '../css/styles.css';
 import isURL from 'is-url';
 import mqtt from 'mqtt';
+import jscookie from 'js-cookie';
 
 //If service worker is installed, show offline usage notification
 if ("serviceWorker" in navigator) {
@@ -45,54 +48,100 @@ window.addEventListener("DOMContentLoaded", () => {
   var fail_usernameEle = document.querySelector('#app__dialog-fail_username');
   var authzfailmsgEle = document.querySelector('#app__dialog-authzfailmsg');
 
+  var loginDialog = document.querySelector('#id01');
+  var connectButton = document.querySelector('#connectButton');
+  var maindiv = document.querySelector('#maindiv');
+
+  let mqtt_uname = null;
+  let mqtt_psw = null;
+  let mqtt_creds_from_cookie = jscookie.getJSON('k2-mqtt-creds');
+
   window.appOverlay = document.querySelector('.app__overlay');
-  
+
   //var client  = mqtt.connect('ws://192.168.1.129:9001');
-  var client  = mqtt.connect('wss://m11.cloudmqtt.com:36606', {username: "zuwlbkon", password: "51pZqkH1OXLV"});
+  //var client  = mqtt.connect('wss://m11.cloudmqtt.com:36606', {username: "zuwlbkon", password: "51pZqkH1OXLV"});
+  var client;
 
-  client.on('connect', function () {
-    console.log('connected to mqtt');
-    client.subscribe('/command/scanqr');
-    client.subscribe('/status/qrresult');
+  connectButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    connectToMQTT();
   });
 
-  client.on('message', function(topic, message) {
-    console.log(`topic ${topic}, message ${message}`);
-    if(topic.toString() == `/command/scanqr`) {
-      if(message.toString() == 'start') {
-        scan();
-      } else if(message.toString() == 'stop') {
-        stopscan();
-      }
-    } else if(topic.toString() == `/status/qrresult`) {
-      /*
-      {
-        rc: 0, //0:success, 1:authnfail, 2:authzfail
-        username: "testuser1",
-        pourtime: 60,
-        msg: "success"
-      }
-      */
-      var qrr = JSON.parse(message.toString());
-      switch(qrr.rc) {
-        case 0:
-          showDialog(0, qrr.pourtime, qrr.username);
-          break;
-        case 1:
-          showDialog(5000, 0, null, qrr.msg, null);
-          break;
-        case 2:
-        showDialog(5000, 0, qrr.username, null, qrr.msg);
-        break;
-      }
+  function connectToMQTT() {
+
+    if(typeof mqtt_creds_from_cookie !== 'undefined') {
+      mqtt_uname = mqtt_creds_from_cookie.username;
+      mqtt_psw = mqtt_creds_from_cookie.password;
+    } else {
+      mqtt_uname = document.querySelector('#mqtt_uname').value;
+      mqtt_psw = document.querySelector('#mqtt_psw').value;
     }
-  });
- 
+
+    client = mqtt.connect('wss://m11.cloudmqtt.com:36606', {
+      username: mqtt_uname,
+      password: mqtt_psw
+    });
+
+    client.on('error', function(err) {
+      this.end(true);
+      console.log(`error connecting to mqtt broker : ${err}`);
+    });
+
+    client.on('connect', function () {
+
+      jscookie.set('k2-mqtt-creds', {"username": mqtt_uname, "password": mqtt_psw});
+
+      loginDialog.style.display = 'none';
+      maindiv.classList.remove('hide');
+      console.log('connected to mqtt');
+      client.subscribe('/command/scanqr');
+      client.subscribe('/status/qrresult');
+    });
+
+    client.on('message', function (topic, message) {
+      console.log(`topic ${topic}, message ${message}`);
+      if (topic.toString() == `/command/scanqr`) {
+        if (message.toString() == 'start') {
+          scan();
+        } else if (message.toString() == 'stop') {
+          stopscan();
+        }
+      } else if (topic.toString() == `/status/qrresult`) {
+        /*
+        {
+          rc: 0, //0:success, 1:authnfail, 2:authzfail
+          username: "testuser1",
+          pourtime: 60,
+          msg: "success"
+        }
+        */
+        var qrr = JSON.parse(message.toString());
+        switch (qrr.rc) {
+          case 0:
+            showDialog(0, qrr.pourtime, qrr.username);
+            break;
+          case 1:
+            showDialog(5000, 0, null, qrr.msg, null);
+            break;
+          case 2:
+            showDialog(5000, 0, qrr.username, null, qrr.msg);
+            break;
+        }
+      }
+    });
+  }
+
   //Initializing qr scanner
   window.addEventListener('load', (event) => {
     QRReader.init(); //To initialize QR Scanner
+    if(typeof mqtt_creds_from_cookie === 'undefined') {
+      loginDialog.style.display = 'block';
+    } else {
+      connectToMQTT();
+    }
+
     // Set camera overlay size
-    setTimeout(() => { 
+    setTimeout(() => {
       setCameraOverlay();
       if (!window.iOS) {
         scan();
@@ -109,13 +158,13 @@ window.addEventListener("DOMContentLoaded", () => {
     window.appOverlay.style.borderStyle = 'none';
     helpText.style.display = 'none';
   }
-  
+
   function createFrame() {
     frame = document.createElement('img');
     frame.src = '';
     frame.id = 'frame';
   }
-  
+
   function stopscan() {
     removeCameraOverlay();
     scanningEle.style.display = 'none';
@@ -132,37 +181,39 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function showTimer(pourtime) { 
+  function showTimer(pourtime) {
     let timercounter = pourtime;
     var x = setInterval(() => {
       pourtimerEle.innerHTML = timercounter;
       timercounter = timercounter - 1;
-      if(timercounter < 0) {
+      if (timercounter < 0) {
         clearInterval(x);
         hideDialog();
       }
     }, 1000);
   }
 
-  function showDialog(period, pourtime=0, username=null, authnfailmsg=null, authzfailmsg=null) {
+  function showDialog(period, pourtime = 0, username = null, authnfailmsg = null, authzfailmsg = null) {
     dialogElement.classList.remove('app__dialog--hide');
     dialogOverlayElement.classList.remove('app__dialog--hide');
-    if(pourtime > 0) {
+    if (pourtime > 0) {
       // success!
       suc_usernameEle.innerHTML = username;
       successEle.classList.remove('app__dialog--hide');
       showTimer(pourtime);
-    } else if(authnfailmsg != null) {
+    } else if (authnfailmsg != null) {
       authnfailEle.classList.remove('app__dialog--hide');
       authnfailmsgEle.innerHTML = authnfailmsg;
-    } else if(authzfailmsg != null) {
+    } else if (authzfailmsg != null) {
       authzfailEle.classList.remove('app__dialog--hide');
       authzfailmsgEle.innerHTML = authzfailmsg;
       fail_usernameEle.innerHTML = username;
     }
 
-    if(period > 0) {
-      setTimeout(()=>{hideDialog();}, period);
+    if (period > 0) {
+      setTimeout(() => {
+        hideDialog();
+      }, period);
     }
   }
 
